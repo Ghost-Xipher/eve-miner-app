@@ -1,0 +1,989 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EVE Miner</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2307100c'/%3E%3Cpath d='M32 8l18 14-6 26-12 8-12-8-6-26z' fill='%2345d39b'/%3E%3Cpath d='M32 8l6 22-6 26-6-26z' fill='%23ffb347'/%3E%3C/svg%3E">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("em:theme")||"dark"}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Same layout and type as EVE Hub Trader; colours lean to ore: deep green-black, mineral green accent (--acc),
+   ISK orange. Every text colour keeps at least 4.5:1 contrast on its backgrounds in both themes. */
+:root{--bg:#07100c;--panel:#0d1913;--line:#1e3329;--text:#e2eee6;--dim:#93ab9d;--isk:#ffa733;--acc:#45d39b;--bad:#ff7a6e;--good:#5fe08a;color-scheme:dark;
+--field:#08130e;--thbg:#0b1712;--hover:#132a1f;--accline:#1f6b4c;--hl:#35604c;--onacc:#03170e;--mast:#030a07;--secedge:rgba(255,255,255,.55);
+--head:"Chakra Petch","Bahnschrift","Segoe UI",system-ui,sans-serif;--body:"Barlow","Segoe UI",system-ui,sans-serif}
+:root[data-theme="light"]{--bg:#eef5f1;--panel:#fff;--line:#cfe0d6;--text:#0f1f17;--dim:#4a5f53;--isk:#9a4a00;--acc:#0b7350;--bad:#b8342b;--good:#1d7a3a;--field:#f5faf7;--thbg:#e8f1ec;--hover:#e1efe7;--accline:#93d1b6;--hl:#a9c7b8;--onacc:#fff;--secedge:rgba(0,0,0,.6);color-scheme:light}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 var(--body);min-height:100vh}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.45;
+background-image:radial-gradient(1px 1px at 30px 50px,#9fc9b4 50%,transparent),radial-gradient(1px 1px at 150px 130px,#6f9c86 50%,transparent),radial-gradient(1.5px 1.5px at 220px 40px,#c7e6d6 50%,transparent),radial-gradient(1px 1px at 90px 210px,#6f9c86 50%,transparent);background-size:260px 260px}
+:root[data-theme="light"] body::before{display:none}
+.mast{position:relative;background:var(--mast);border-bottom:1px solid #1e3329;display:flex;justify-content:center;align-items:center;gap:18px;padding:26px 16px;overflow:hidden}
+.mast::after{content:"";position:absolute;inset:0;background:radial-gradient(60% 120% at 50% 100%,rgba(69,211,155,.16),transparent 70%);pointer-events:none}
+.mast svg{width:64px;height:64px;flex:none}
+.mast .t{font:700 clamp(30px,5vw,46px)/1 var(--head);color:#e2eee6;letter-spacing:.06em}
+.mast .t b{color:#45d39b;font-weight:700}
+.mast .s{font:500 14px var(--body);color:#93ab9d;letter-spacing:.08em;text-transform:uppercase}
+.wrap{position:relative;max-width:1200px;margin:0 auto;padding:22px 22px 80px}
+.tabs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 30px;border-bottom:1px solid var(--line)}
+.tabs a{color:var(--dim);text-decoration:none;padding:10px 16px;font:600 15px var(--head);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs a.on{color:var(--text);border-color:var(--acc)}
+.tabs a:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.tabs .sp{flex:1}
+.tabs button{padding:5px 12px;font-size:13px;margin-bottom:4px}
+#who{font-size:13px;color:var(--dim);margin-right:8px;display:flex;align-items:center;gap:6px}
+#who img{width:22px;height:22px;border-radius:50%}
+#ver{align-self:center;margin-right:10px;color:var(--dim);font:500 12px var(--body)}
+h1{font:700 clamp(30px,5vw,42px)/1.05 var(--head);margin:0 0 10px}
+h2{font:600 20px var(--head);margin:28px 0 8px}
+.sub{color:var(--dim);margin:0 0 26px;max-width:72ch;font-size:17px}
+form,.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+fieldset{margin:0;border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:6px 18px 18px;display:grid;grid-template-columns:1fr 1fr;gap:14px;align-content:start}
+legend{font:600 15px var(--head);color:var(--acc);padding:0 8px;margin-left:-8px;letter-spacing:.02em}
+label{display:flex;flex-direction:column;gap:5px;color:var(--dim);font-size:14px;min-width:0}
+.wide{grid-column:1/-1}
+input,select{background:var(--field);border:1px solid var(--line);color:var(--text);padding:9px 11px;border-radius:3px;font:inherit;width:100%;min-width:0}
+select{appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238aa396' stroke-width='1.6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
+input:hover,select:hover{border-color:var(--hl)}
+input:focus-visible,select:focus-visible,button:focus-visible,th:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+label.chk{flex-direction:row;align-items:center;gap:9px;color:var(--text)}
+label.chk input{width:auto;accent-color:var(--acc)}
+.chks{display:flex;flex-wrap:wrap;gap:6px 18px}
+.act{grid-column:1/-1;display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:4px}
+button{background:var(--acc);color:var(--onacc);border:0;border-radius:4px;padding:12px 26px;font:600 16px var(--head);letter-spacing:.02em;cursor:pointer}
+button.ghost{background:transparent;color:var(--acc);border:1px solid var(--accline);padding:8px 14px;font-size:14px}
+button.small{padding:5px 10px;font-size:13px}
+button:disabled{opacity:.5;cursor:not-allowed}
+.status{color:var(--dim);display:flex;align-items:center;gap:10px;min-height:26px}
+.status.err{color:var(--bad)}
+.status.busy::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--acc);flex:none;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.status.busy::before{animation:none}}
+.note{color:var(--dim);font-size:13px;margin:4px 0 0}
+.note b{color:var(--text);font-weight:600}
+.tw{overflow:auto;max-height:max(420px,calc(100vh - 140px));margin-top:14px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.tw.wide{width:max(100%,min(calc(100vw - 56px),1560px));position:relative;left:50%;transform:translateX(-50%)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;white-space:nowrap}
+th,td{padding:9px 11px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--dim);font:500 14px var(--body);background:var(--thbg);user-select:none}
+th[data-k]{cursor:pointer}
+th.on{color:var(--text)}
+th.on::after{content:" ▾";color:var(--acc)}
+th.on.asc::after{content:" ▴"}
+.tw thead th{position:sticky;top:0;z-index:2;box-shadow:inset 0 -1px var(--line)}
+.tw th:first-child{left:0;z-index:3}
+.tw td.nm{position:sticky;left:0;z-index:1;background:var(--panel);box-shadow:inset -1px 0 var(--line)}
+tbody tr:hover,tbody tr:hover td.nm,tr.sel td,tr.sel td.nm{background:var(--hover)}
+tbody tr{cursor:default}
+tbody tr.clk{cursor:pointer}
+tr:last-child td{border-bottom:0}
+.nmw{display:flex;align-items:center;gap:10px;min-width:190px;white-space:normal;text-align:left}
+.nmw img{width:28px;height:28px;border-radius:3px;background:var(--field);flex:none}
+td.p{color:var(--isk);font-weight:600}
+td.best{color:var(--good);font-weight:600}
+td.l,th.l{text-align:left}
+td.wrapc{white-space:normal;text-align:left;min-width:160px}
+.tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:9px;border:1px solid var(--line);color:var(--dim);margin-left:4px}
+.sec{display:inline-block;min-width:32px;text-align:center;font-weight:600;border-radius:3px;padding:0 4px;color:#000;background:var(--c);box-shadow:inset 0 0 0 1px var(--secedge)}
+.big{font:700 clamp(36px,7vw,64px)/1 var(--head);color:var(--isk);font-variant-numeric:tabular-nums}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+.kpi .v{font:700 24px var(--head);color:var(--isk);font-variant-numeric:tabular-nums}
+.kpi .v.acc{color:var(--acc)}
+.kpi .k{font-size:13px;color:var(--dim)}
+.slots{display:grid;gap:8px}
+.slotrow{display:grid;grid-template-columns:78px 1fr 1fr;gap:8px;align-items:center}
+.slotrow.nocharge{grid-template-columns:78px 1fr}
+.slotrow .sk{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+.slotrow select{padding:7px 30px 7px 9px;font-size:14px}
+.bar{height:8px;background:var(--field);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--acc)}
+.bar.over i{background:var(--bad)}
+.limrow{display:grid;grid-template-columns:110px 1fr 140px;gap:10px;align-items:center;font-size:14px;color:var(--dim)}
+.limrow span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.limrow.over span:last-child{color:var(--bad)}
+.skillgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px 14px;margin-top:8px}
+.skillgrid label{flex-direction:row;align-items:center;justify-content:space-between;color:var(--text)}
+.skillgrid select{width:70px;padding:4px 24px 4px 8px;font-size:14px;background-position:right 7px center}
+.shiphead{display:flex;align-items:center;gap:14px}
+.shiphead img{width:96px;height:96px;border-radius:6px;background:var(--field);border:1px solid var(--line)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 18px;margin-top:16px}
+.panel h3{font:600 17px var(--head);margin:0 0 8px}
+.mins{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 18px;font-size:14px}
+.mins div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dashed var(--line);padding:3px 0}
+.ok{color:var(--good)} .warn{color:var(--isk)} .badt{color:var(--bad)}
+code{background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:3px;font-size:14px}
+ol.steps{margin:6px 0 0;padding-left:20px;color:var(--dim);font-size:14px}
+ol.steps li{margin:3px 0}
+a{color:var(--acc)}
+@media (max-width:560px){.wrap{padding:18px 16px 60px}fieldset{grid-template-columns:1fr}.slotrow{grid-template-columns:60px 1fr}.slotrow select:nth-child(3){grid-column:2}.limrow{grid-template-columns:80px 1fr 110px}}
+</style>
+</head>
+<body>
+<header class="mast">
+  <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4l22 17-7 31-15 9-15-9-7-31z" fill="#123d2c" stroke="#45d39b" stroke-width="2"/><path d="M32 4l7 26-7 31-7-31z" fill="#ffb347" opacity=".9"/><path d="M10 21l22 9 22-9" fill="none" stroke="#45d39b" stroke-width="1.5" opacity=".7"/></svg>
+  <div><div class="t">EVE <b>MINER</b></div><div class="s">Ore values · yield · mining planner</div></div>
+</header>
+<div class="wrap">
+<nav class="tabs"><a href="#ores" data-v="ores">Ore Values</a><a href="#yield" data-v="yield">Yield Calculator</a><a href="#planner" data-v="planner">Mining Planner</a><a href="#settings" data-v="settings">Settings</a><span class="sp"></span><span id="who"></span><span id="ver" title="EVE Miner version (must match package.json)">v1.1.0</span><button id="theme" class="ghost" type="button">Light theme</button></nav>
+
+<!-- ================= ORE VALUES ================= -->
+<section id="v-ores" hidden>
+<h1>Ore Values</h1>
+<p class="sub">What every ore, moon ore and ice is worth at a trade hub, per m³ you mine: sold raw, compressed, or reprocessed into minerals with your skills, after taxes. ISK per hour uses your fit from the Yield Calculator.</p>
+<form id="oreForm" autocomplete="off">
+<fieldset><legend>Market</legend>
+  <label>Trade hub<select id="hub"></select></label>
+  <label>Sell by<select id="sellMode"><option value="instant">Buy orders (instant)</option><option value="list">Own sell orders</option></select></label>
+  <label>Accounting<select id="acct" class="lv"></select></label>
+  <label>Broker Relations<select id="brok" class="lv"></select></label>
+  <p class="note wide" id="feeNote"></p>
+</fieldset>
+<fieldset><legend>Reprocessing</legend>
+  <label>Facility yield (base %)<input id="repBase" type="number" min="1" max="100" step="any"></label>
+  <label>Reprocessing tax %<input id="repTax" type="number" min="0" max="50" step="any"></label>
+  <label>Reprocessing<select id="rep" class="lv"></select></label>
+  <label>Reprocessing Efficiency<select id="repEff" class="lv"></select></label>
+  <label>Ore processing skills<select id="oreSk"></select></label>
+  <label>Implant (+%)<select id="implant"><option value="0">None</option><option value="1">RX-801 (+1%)</option><option value="2">RX-802 (+2%)</option><option value="4">RX-804 (+4%)</option></select></label>
+  <p class="note wide" id="repNote"></p>
+</fieldset>
+<fieldset><legend>Ores to show</legend>
+  <div class="chks wide" id="kinds"></div>
+  <label class="wide">Grades<select id="grades"><option value="base">Base grade only</option><option value="all">Every grade (II, III, IV ...)</option></select></label>
+  <p class="note wide">Prices are read from EVE's market at the hub station only, and stay fresh for about 5 minutes.</p>
+</fieldset>
+<div class="act"><button id="oreGo" type="submit">Get ore values</button><button id="holdGo" class="ghost signin-only" type="button" hidden>Value my ore hold</button><span id="oStatus" class="status"></span></div>
+</form>
+<div id="holdOut" class="panel" hidden></div>
+<div id="oreOut" hidden>
+  <div class="kpis" id="oreKpis"></div>
+  <div class="tw wide"><table id="oreTable"></table></div>
+  <div id="oreDetail" class="panel" hidden></div>
+</div>
+</section>
+
+<!-- ================= YIELD CALCULATOR ================= -->
+<section id="v-yield" hidden>
+<h1>Yield Calculator</h1>
+<p class="sub">Pick a mining ship, its modules, crystals, drones and your skills to see m³ per minute and how long the hold takes to fill. Worked out from CCP's own ship, module and skill data, the same way the game does.</p>
+<div class="grid">
+<fieldset><legend>Ship</legend>
+  <div class="wide shiphead"><img id="shipImg" alt=""><div><select id="ship"></select><p class="note" id="shipNote"></p></div></div>
+  <label class="wide">Pilot skills<select id="skillMode"><option value="5">All skills V</option><option value="4">All skills IV</option><option value="3">All skills III</option><option value="0">No skills</option><option value="custom">Custom levels</option><option value="me" disabled>My character's skills</option></select></label>
+  <div class="act wide"><button id="myShip" class="ghost signin-only" type="button" hidden>Load my ship from EVE</button><span id="yStatus" class="status"></span></div>
+</fieldset>
+<fieldset><legend>Fitting</legend>
+  <div class="slots wide" id="slots"></div>
+  <div class="wide" id="lims"></div>
+</fieldset>
+<fieldset id="pfBox"><legend>Presets and best fit</legend>
+  <label>Mining<select id="pfKind"><option value="ore">Asteroid ore</option><option value="ice">Ice</option><option value="moon">Moon ore</option></select></label>
+  <label>Ore to fit for<select id="pfOre"></select></label>
+  <label class="wide">Modules allowed<select id="pfMeta"><option value="t12">Tech I and II (easy to buy)</option><option value="fac">Also faction, ORE and storyline</option><option value="all">Anything (deadspace and officer too)</option></select></label>
+  <div class="act wide"><button id="pfMine" type="button">Best fit for my skills</button><span id="pfStatus" class="status"></span></div>
+  <p class="note wide">Fits the ship above for the most m³ per hour with the skill levels above (your character's when you pick them). Presets below do the same for each stage of a miner's career.</p>
+</fieldset>
+</div>
+<div id="pfOut" class="panel"><h3>Presets by career stage <span class="note" id="pfSub"></span></h3><div class="tw" style="margin-top:8px"><table id="pfTable"></table></div>
+<p class="note">Each fit is searched from every module, crystal, rig and drone the ship can use with those skills (CPU, powergrid, calibration and drone bandwidth must fit), using the same yield math as above. Skill levels are all at the stage's level, raised to what the hull needs to fly. Waste only breaks ties: it is ore lost from the rock, not from your hold.</p></div>
+<details class="panel" id="skillBox"><summary><b>Skill levels used</b> <span class="note" id="skillSum"></span></summary><div class="skillgrid" id="skillGrid"></div></details>
+<div class="kpis" id="yKpis"></div>
+<div class="tw"><table id="yTable"></table></div>
+<p class="note">Rates include the expected bonus from critical successes (chance × extra yield). Not counted: Mining Foreman bursts and other fleet boosts, implants, boosters, overheating. Waste is ore lost from the rock, not from your hold.</p>
+</section>
+
+<!-- ================= MINING PLANNER ================= -->
+<section id="v-planner" hidden>
+<h1>Mining Planner</h1>
+<p class="sub">Finds the best systems with asteroid belts near you: which ores their security usually has, how far the nearest station with a reprocessing plant is, how busy and dangerous they were in the last hour, and an ISK per hour estimate that counts the trips to unload.</p>
+<form id="planForm" autocomplete="off">
+<fieldset><legend>Where</legend>
+  <label class="wide">Start system<input id="pStart" list="sysList" placeholder="e.g. Jita"></label>
+  <label>Search radius (jumps)<input id="pRadius" type="number" min="0" max="15" step="1"></label>
+  <label>Systems to use<select id="pSec"><option value="high">Highsec only</option><option value="low">Highsec and lowsec</option><option value="all">Everything (nullsec too)</option></select></label>
+  <label>Route<select id="pPref"><option value="secure">Safer (avoid lowsec and nullsec)</option><option value="shortest">Shortest</option></select></label>
+  <label>Ore to mine<select id="pOre"></select></label>
+  <div class="act wide"><button id="useLoc" class="ghost signin-only" type="button" hidden>Use my location</button></div>
+</fieldset>
+<fieldset><legend>Mining</legend>
+  <label>Your yield (m³/hour)<input id="pRate" type="number" min="0" step="any"></label>
+  <label>Ore hold (m³)<input id="pHold" type="number" min="0" step="any"></label>
+  <label>Seconds per jump<input id="pJump" type="number" min="10" max="300" step="any"></label>
+  <label>Dock and undock (s)<input id="pDock" type="number" min="0" max="600" step="any"></label>
+  <p class="note wide">Yield and hold come from the Yield Calculator (<a href="#yield">change the fit</a>). Ore is valued the way set on the Ore Values tab (hub, selling, reprocessing).</p>
+</fieldset>
+<div class="act"><button id="planGo" type="submit">Find mining systems</button><span id="pStatus" class="status"></span></div>
+</form>
+<datalist id="sysList"></datalist>
+<div id="planOut" hidden>
+  <div class="tw wide"><table id="planTable"></table></div>
+  <div id="planDetail" class="panel" hidden></div>
+  <p class="note">Belt ores follow EVE University's ore table by empire, security and nullsec region (CCP doesn't publish them), so they are a guide; ore anomalies, moon mining and ice fields are not covered. Click a system to see which belt to warp to. Ship kills and jumps are EVE's figures for the last hour. Score = ISK/hour lowered 30% in lowsec, 50% in nullsec and 8% for every ship killed there in the last hour.</p>
+</div>
+</section>
+
+<!-- ================= SETTINGS ================= -->
+<section id="v-settings" hidden>
+<h1>Settings</h1>
+<div class="grid">
+<fieldset id="ssoBox"><legend>EVE sign-in</legend>
+  <div class="wide" id="ssoState"></div>
+  <div class="act wide desk-only"><button id="signIn" type="button">Sign in with EVE</button><button id="signOut" class="ghost" type="button" hidden>Sign out</button><span id="sStatus" class="status"></span></div>
+  <div class="wide note desk-only">
+    Every EVE account and character signs in through the same built-in EVE application, so there is nothing to set up: click Sign in and pick the character on EVE's page. To switch characters, sign out and sign in again.
+    Signing in lets EVE Miner read your skills, wallet, location and ship (with its fitted modules and hold, from your asset list) and set the in-game autopilot route. It never flies your ship.
+  </div>
+  <p class="wide note web-only">Sign-in works in the desktop app (<code>npm start</code> or the .exe). In a plain browser everything else works without it.</p>
+</fieldset>
+<fieldset><legend>Data</legend>
+  <p class="wide note" id="dataNote"></p>
+  <div class="act wide"><button id="clearCache" class="ghost" type="button">Forget downloaded prices</button></div>
+</fieldset>
+</div>
+</section>
+</div>
+
+<script src="lib/mining-core.js"></script>
+<script src="assets/map.js?v=3720952.2"></script>
+<script src="assets/mining.js?v=3720952.2"></script>
+<script>
+"use strict";
+const C = window.MINER_CORE, D = window.EVE_MINING, MAP = window.EVE_MAP;
+const ESI = "https://esi.evetech.net/latest";
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const HUBS = {
+  jita: { name: "Jita", region: 10000002, station: 60003760, system: 30000142, st: "Jita IV - Moon 4 - Caldari Navy Assembly Plant" },
+  amarr: { name: "Amarr", region: 10000043, station: 60008494, system: 30002187, st: "Amarr VIII (Oris) - Emperor Family Academy" },
+  dodixie: { name: "Dodixie", region: 10000032, station: 60011866, system: 30002659, st: "Dodixie IX - Moon 20 - Federation Navy Assembly Plant" },
+  rens: { name: "Rens", region: 10000030, station: 60004588, system: 30002510, st: "Rens VI - Moon 8 - Brutor Tribe Treasury" },
+  hek: { name: "Hek", region: 10000042, station: 60005686, system: 30002053, st: "Hek VIII - Moon 12 - Boundless Creation Factory" }
+};
+const KINDS = { ore: "Asteroid ores", moon: "Moon ores", ice: "Ice", merc: "Mercoxit", trig: "Triglavian (Pochven)" };
+const SECCOL = { "1.0": "#2c74e0", "0.9": "#3a9aeb", "0.8": "#4ecef8", "0.7": "#60dba3", "0.6": "#71e554", "0.5": "#f3fd82", "0.4": "#dc6d07", "0.3": "#ce440f", "0.2": "#bc1117", "0.1": "#722020", "0.0": "#8d3264" };
+const secColor = s => SECCOL[s > 0 ? C.secText(s) : "0.0"];
+const secHtml = s => `<span class="sec" style="--c:${secColor(s)}">${s > 0 ? C.secText(s) : (s / 1000).toFixed(1)}</span>`;
+const icon = (id, size = 32) => `https://images.evetech.net/types/${id}/icon?size=${size}`;
+const T = id => D.types[id] || {};
+const ORE = new Map(D.ores.map(o => [o.id, o]));
+
+// ---------- saved state ----------
+const load = (k, d) => { try { const v = localStorage.getItem("em:" + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+const store = (k, v) => { try { localStorage.setItem("em:" + k, JSON.stringify(v)); } catch (e) {} };
+const S = Object.assign({ hub: "jita", sellMode: "instant", acct: "3", brok: "3", repBase: 50, repTax: 5, rep: "3", repEff: "0", oreSk: "0", implant: "0",
+  kinds: { ore: true, moon: false, ice: false, merc: false, trig: false }, grades: "base",
+  pfKind: "ore", pfOre: {}, pfMeta: "t12",
+  pStart: "", pRadius: 5, pSec: "high", pPref: "secure", pOre: "best", pJump: 45, pDock: 60, pRateOver: null, pHoldOver: null }, load("settings", {}));
+const saveS = () => store("settings", S);
+
+// ---------- formatting ----------
+const n0 = v => Math.round(v).toLocaleString("en-US");
+const n1 = v => v.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+const n2 = v => v.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+function isk(v) {
+  if (!isFinite(v) || v === 0) return "—";
+  const a = Math.abs(v);
+  if (a >= 1e9) return n2(v / 1e9) + "B";
+  if (a >= 1e6) return n2(v / 1e6) + "M";
+  if (a >= 1e4) return n1(v / 1e3) + "k";
+  return a >= 100 ? n0(v) : n2(v);
+}
+const mins = s => s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.round(s % 3600 / 60)} min` : s >= 60 ? `${Math.floor(s / 60)} min ${Math.round(s % 60)} s` : `${Math.round(s)} s`;
+function setStatus(el, msg, kind) { el.textContent = msg || ""; el.className = "status" + (kind ? " " + kind : ""); }
+
+// ---------- ESI (public) ----------
+async function getJSON(url, tries = 3) {
+  let last = {};
+  for (let t = 0; t < tries; t++) {
+    try {
+      const r = await fetch(url);
+      if (r.status === 420 || r.status === 429) {
+        const retry = +r.headers.get("retry-after") || 0; last = { status: r.status, retry };
+        if (retry > 10) break;
+        await sleep(Math.max(retry * 1000, 1500 * (t + 1))); continue;
+      }
+      if (r.status >= 500) { last = { status: r.status }; await sleep(1200 * (t + 1)); continue; }
+      if (!r.ok) return { ok: false, status: r.status };
+      const ex = Date.parse(r.headers.get("expires") || "");
+      return { ok: true, data: await r.json(), pages: +r.headers.get("x-pages") || 1, exp: ex > Date.now() ? ex : Date.now() + 3e5 };
+    } catch (e) { last = { status: 0 }; await sleep(800); }
+  }
+  return { ok: false, ...last };
+}
+const esiErr = (what, r) => new Error(r.status === 420 || r.status === 429
+  ? `EVE's API has had too many requests from this connection, so ${what} could not be loaded. Wait ${r.retry ? "about " + Math.ceil(r.retry / 60) + " minute(s)" : "a few minutes"} and try again.`
+  : `Could not load ${what} (${r.status ? "HTTP " + r.status : "network error"}). Check your connection and try again.`);
+async function pool(items, n, fn) { let i = 0; await Promise.all(Array.from({ length: n }, async () => { while (i < items.length) { const x = items[i++]; await fn(x); } })); }
+
+// Orders for one item in one region, cached until ESI says they change (about 5 minutes).
+const BOOKS = new Map();
+async function ordersOf(region, type) {
+  const k = region + ":" + type, hit = BOOKS.get(k);
+  if (hit && hit.exp > Date.now()) return hit.orders;
+  const url = p => `${ESI}/markets/${region}/orders/?datasource=tranquility&order_type=all&type_id=${type}&page=${p}`;
+  const r = await getJSON(url(1));
+  if (!r.ok) throw esiErr("market prices", r);
+  let orders = r.data;
+  for (let p = 2; p <= Math.min(r.pages, 10); p++) { const x = await getJSON(url(p)); if (x.ok) orders = orders.concat(x.data); }
+  BOOKS.set(k, { orders, exp: r.exp });
+  return orders;
+}
+// Best prices at a hub for a list of items: Map(type -> {bid, ask, bidVol, askVol}).
+async function booksAt(hub, types, progress) {
+  const H = HUBS[hub], out = new Map(); let done = 0;
+  const list = [...new Set(types)].filter(Boolean);
+  await pool(list, 16, async t => { out.set(t, C.bookAt(await ordersOf(H.region, t), H.station)); done++; if (progress) progress(done, list.length); });
+  return out;
+}
+
+// ---------- EVE sign-in (desktop app) ----------
+const EVE = window.eve || null;
+let ME = null; // { id, name, skills: {id: level}, ship, location }
+async function meLoad() {
+  if (!EVE) return;
+  try {
+    const t = await EVE.token(); if (!t) { ME = null; drawWho(); return; }
+    ME = { id: t.characterId, name: t.characterName, skills: null };
+    drawWho();
+    const sk = await EVE.esi(`/characters/${ME.id}/skills/`);
+    if (sk.ok) { ME.skills = {}; for (const s of sk.data.skills || []) ME.skills[s.skill_id] = s.active_skill_level; ME.sp = sk.data.total_sp; }
+    drawWho(); onSkills();
+  } catch (e) { console.warn(e); }
+}
+function drawWho() {
+  const w = $("#who");
+  w.innerHTML = ME ? `<img src="https://images.evetech.net/characters/${ME.id}/portrait?size=32" alt="">${esc(ME.name)}` : "";
+  $$(".signin-only").forEach(b => b.hidden = !ME);
+  $("#skillMode option[value=me]").disabled = !ME || !ME.skills;
+  drawSso();
+}
+function drawSso() {
+  $$(".desk-only").forEach(e => e.hidden = !EVE);
+  $$(".web-only").forEach(e => e.hidden = !!EVE);
+  $("#ssoState").innerHTML = ME ? `<div class="shiphead"><img src="https://images.evetech.net/characters/${ME.id}/portrait?size=128" alt="" style="width:64px;height:64px"><div><b>${esc(ME.name)}</b><div class="note">${ME.skills ? `Skills read: ${Object.keys(ME.skills).length} trained` : "Reading skills..."}</div></div></div>` : (EVE ? `<p class="note">Not signed in.</p>` : "");
+  $("#signIn").hidden = !!ME; $("#signOut").hidden = !ME;
+}
+async function signIn() {
+  setStatus($("#sStatus"), "Waiting for EVE's login page in your browser...", "busy");
+  try { await EVE.login(); setStatus($("#sStatus"), "Signed in."); await meLoad(); }
+  catch (e) { setStatus($("#sStatus"), String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ""), "err"); }
+}
+async function signOut() { await EVE.logout(); ME = null; drawWho(); onSkills(); setStatus($("#sStatus"), "Signed out."); }
+async function setRoute(list, label, el) {
+  if (!ME) return;
+  setStatus(el, "Setting the route in EVE...", "busy");
+  const r = await EVE.waypoint(list);
+  setStatus(el, r.ok ? `Route set to ${label}. Check the in-game autopilot.` : r.status === 401 || r.status === 403 ? "EVE refused: sign in again (the waypoint permission may be missing)." : `Could not set the route (HTTP ${r.status}). Is the character online?`, r.ok ? "" : "err");
+}
+
+// ---------- skill level pickers ----------
+const LV = ["0", "1", "2", "3", "4", "5"];
+function fillLv(sel, val) { sel.innerHTML = (ME && ME.skills ? `<option value="me">Mine</option>` : "") + LV.map(l => `<option value="${l}">${l === "0" ? "Not trained" : "Level " + ["", "I", "II", "III", "IV", "V"][l]}</option>`).join(""); sel.value = [...sel.options].some(o => o.value === val) ? val : "0"; }
+const SKILL_ID = { acct: 16622, brok: 3446, rep: 3385, repEff: 3389 };
+const lvOf = key => { const v = S[key]; if (v === "me") return ME && ME.skills ? ME.skills[SKILL_ID[key]] || 0 : 0; return +v || 0; };
+const oreLvOf = ore => S.oreSk === "me" ? (ME && ME.skills ? ME.skills[ore.sk] || 0 : 0) : +S.oreSk || 0;
+
+// ================= ORE VALUES =================
+let ORE_ROWS = [], ORE_SORT = { k: "best", asc: false }, ORE_BOOKS = null, ORE_HUB = null;
+function oreSettings() {
+  return { tax: C.taxFor(lvOf("acct")), broker: C.brokerFor(lvOf("brok")), mode: S.sellMode, base: (+S.repBase || 50) / 100, repTax: (+S.repTax || 0) / 100,
+    rep: lvOf("rep"), eff: lvOf("repEff"), implant: +S.implant || 0 };
+}
+// Base grade = the lowest asteroid meta level (from 1 up) in the ore's family; II, III, IV and 0-grade are variants.
+const BASE_META = {}; for (const o of D.ores) if (!o.raw && o.meta >= 1) BASE_META[o.g] = Math.min(BASE_META[o.g] ?? 99, o.meta);
+const isBaseGrade = o => o.meta === (BASE_META[o.g] ?? o.meta);
+function shownOres() {
+  return D.ores.filter(o => !o.raw && S.kinds[o.k] && (S.grades === "all" || isBaseGrade(o)));
+}
+// Types whose prices an ore list needs: the ore, its compressed form and its minerals.
+const typesFor = ores => { const s = new Set(); for (const o of ores) { s.add(o.id); if (o.cmp) s.add(o.cmp); for (const [m] of o.m) s.add(m); } return [...s]; };
+// Value of one m³ of raw ore each way, and the best of them.
+function valueOre(o, books, st) {
+  const net = id => C.netPrice(books.get(id), st.mode, st.tax, st.broker);
+  const raw = net(o.id) / o.v;
+  const cmp = o.cmp ? net(o.cmp) / o.v : 0;
+  const y = C.refineYield(st.base, st.rep, st.eff, oreLvOf(o), st.implant);
+  let ref = 0, mats = [];
+  for (const [id, q] of C.mineralsPerUnit(o, y)) { const p = net(id); mats.push({ id, q, p }); ref += q * p; }
+  ref = ref * (1 - st.repTax) / o.v;
+  const ways = { raw, cmp, ref };
+  const bestK = Object.keys(ways).reduce((a, b) => ways[b] > ways[a] ? b : a, "raw");
+  const b = books.get(o.id) || {}, bc = books.get(o.cmp) || {};
+  const depth = (b.bidVol || 0) * o.v, depthC = (bc.bidVol || 0) * o.v;
+  return { o, raw, cmp, ref, best: ways[bestK], bestK, y, mats, depth, depthC, depthBest: bestK === "cmp" ? depthC : bestK === "raw" ? depth : 0, rate: rateFor(o) };
+}
+const WAY = { raw: "Sell raw", cmp: "Compress & sell", ref: "Reprocess" };
+const FOUND = { moon: "Moons", ice: "Ice fields", trig: "Pochven", merc: "Nullsec" };
+function foundText(o) {
+  if (FOUND[o.k]) return FOUND[o.k];
+  return C.BELT_WHERE[D.oreGroups[o.g]] || "Ore anomalies";
+}
+async function runOres(ev) {
+  if (ev) ev.preventDefault();
+  readOreForm();
+  const ores = shownOres(), st = $("#oStatus");
+  if (!ores.length) { setStatus(st, "Tick at least one kind of ore.", "err"); return; }
+  $("#oreGo").disabled = true;
+  setStatus(st, `Reading ${HUBS[S.hub].name} prices...`, "busy");
+  try {
+    const books = await booksAt(S.hub, typesFor(ores), (d, n) => setStatus(st, `Reading ${HUBS[S.hub].name} prices: ${d} of ${n} items`, "busy"));
+    ORE_BOOKS = books; ORE_HUB = S.hub;
+    drawOres();
+    setStatus(st, `${ores.length} ores priced at ${HUBS[S.hub].st}.`);
+  } catch (e) { setStatus(st, e.message, "err"); }
+  $("#oreGo").disabled = false;
+}
+function drawOres() {
+  if (!ORE_BOOKS) return;
+  const st = oreSettings(), ores = shownOres().filter(o => typesFor([o]).every(t => ORE_BOOKS.has(t)));
+  ORE_ROWS = ores.map(o => valueOre(o, ORE_BOOKS, st)).map(r => ({ ...r, hour: r.best * r.rate * 3600 }));
+  const k = ORE_SORT.k, dir = ORE_SORT.asc ? 1 : -1;
+  ORE_ROWS.sort((a, b) => k === "name" ? dir * a.o.n.localeCompare(b.o.n) : dir * ((a[k] || 0) - (b[k] || 0)) || b.best - a.best);
+  const cols = [["name", "Ore", "l"], ["found", "Usually found", "l"], ["raw", "Raw ISK/m³"], ["cmp", "Compressed ISK/m³"], ["ref", "Reprocessed ISK/m³"], ["best", "Best ISK/m³"], ["way", "Best way", "l"], ["hour", "ISK/hour (your fit)"], ["depthBest", "Buyers for best way (m³)"]];
+  const th = cols.map(([key, label, cl]) => `<th data-k="${key}" class="${cl || ""} ${ORE_SORT.k === key ? "on" + (ORE_SORT.asc ? " asc" : "") : ""}" tabindex="0">${label}</th>`).join("");
+  const cell = (r, key) => r[key] > 0 ? `<td class="${r.bestK === key ? "best" : ""}">${isk(r[key])}</td>` : `<td class="note">—</td>`;
+  $("#oreTable").innerHTML = `<thead><tr>${th}</tr></thead><tbody>${ORE_ROWS.map((r, i) => `<tr class="clk" data-i="${i}">
+    <td class="nm"><div class="nmw"><img loading="lazy" src="${icon(r.o.id)}" alt="">${esc(r.o.n)}</div></td>
+    <td class="l">${foundText(r.o)}</td>${cell(r, "raw")}${cell(r, "cmp")}${cell(r, "ref")}
+    <td class="p">${isk(r.best)}</td><td class="l">${r.best > 0 ? WAY[r.bestK] : "No buyers"}</td>
+    <td class="p">${r.rate > 0 ? isk(r.hour) : `<span class="note" title="Nothing in your fit can mine this">can't mine</span>`}</td>
+    <td title="Buy orders within 5% of the best price, in m³ of raw ore: raw ${n0(r.depth)} m³, compressed ${n0(r.depthC)} m³">${r.bestK === "ref" ? `<span class="note">minerals</span>` : r.depthBest ? n0(r.depthBest) : "—"}</td></tr>`).join("")}</tbody>`;
+  const top = ORE_ROWS.filter(r => r.rate > 0).sort((a, b) => b.hour - a.hour)[0], topV = [...ORE_ROWS].sort((a, b) => b.best - a.best)[0];
+  $("#oreKpis").innerHTML = [
+    top ? `<div class="kpi"><div class="v">${isk(top.hour)}</div><div class="k">best ISK/hour: ${esc(top.o.n)} (${WAY[top.bestK].toLowerCase()})</div></div>` : "",
+    topV ? `<div class="kpi"><div class="v">${isk(topV.best)}</div><div class="k">best ISK per m³: ${esc(topV.o.n)}</div></div>` : "",
+    `<div class="kpi"><div class="v acc">${n1(st.base * (1 + 0.03 * st.rep) * (1 + 0.02 * st.eff) * (1 + st.implant / 100) * 100)}%</div><div class="k">reprocessing yield before ore skill</div></div>`,
+    `<div class="kpi"><div class="v acc">${n0(YC.oreRate * 60)} m³</div><div class="k">per minute with your fit (ore)</div></div>`
+  ].join("");
+  $("#oreOut").hidden = false;
+  if (ORE_DETAIL != null) drawOreDetail(ORE_DETAIL);
+}
+let ORE_DETAIL = null;
+function drawOreDetail(id) {
+  const r = ORE_ROWS.find(x => x.o.id === id); const box = $("#oreDetail");
+  if (!r) { box.hidden = true; return; }
+  ORE_DETAIL = id;
+  $$("#oreTable tbody tr").forEach(tr => tr.classList.toggle("sel", ORE_ROWS[+tr.dataset.i] === r));
+  const st = oreSettings(), b = ORE_BOOKS.get(r.o.id) || {}, bc = ORE_BOOKS.get(r.o.cmp) || {};
+  box.hidden = false;
+  box.innerHTML = `<h3>${esc(r.o.n)} <span class="tag">${esc(D.oreGroups[r.o.g] || "")}</span></h3>
+  <p class="note">${n2(r.o.v)} m³ per unit, reprocessed in batches of ${r.o.ps}. Compressed: ${r.o.cmp ? `${esc(T(r.o.cmp).n || ("Compressed " + r.o.n))}, ${n2(ORE.get(r.o.cmp).v)} m³ per unit (${n0(r.o.v / ORE.get(r.o.cmp).v)}× smaller to haul)` : "none"}.</p>
+  <div class="mins">
+    <div><span>Raw: best buy / sell order</span><b>${isk(b.bid)} / ${isk(b.ask)}</b></div>
+    <div><span>Compressed: best buy / sell order</span><b>${isk(bc.bid)} / ${isk(bc.ask)}</b></div>
+    <div><span>Reprocessing yield</span><b>${n1(r.y * 100)}%</b></div>
+    <div><span>Ore processing skill used</span><b>${oreLvOf(r.o)} (${esc(T(r.o.sk).n || "—")})</b></div>
+  </div>
+  <h3 style="margin-top:14px">Minerals from 1,000 m³ of ${esc(r.o.n)}</h3>
+  <div class="mins">${r.mats.map(m => `<div><span><img src="${icon(m.id)}" alt="" style="width:20px;height:20px;vertical-align:middle;margin-right:6px">${esc(D.minerals[m.id] || m.id)}</span><b>${n0(m.q * 1000 / r.o.v)} × ${isk(m.p)} = ${isk(m.q * 1000 / r.o.v * m.p)}</b></div>`).join("")}</div>
+  <p class="note">After ${n1(st.repTax * 100)}% reprocessing tax: <b>${isk(r.ref * 1000)}</b> per 1,000 m³. Sold raw: <b>${isk(r.raw * 1000)}</b>; compressed: <b>${isk(r.cmp * 1000)}</b>.</p>`;
+}
+function readOreForm() {
+  for (const k of ["hub", "sellMode", "acct", "brok", "rep", "repEff", "oreSk", "implant", "grades"]) S[k] = $("#" + k).value;
+  S.repBase = +$("#repBase").value || 50; S.repTax = Math.max(0, +$("#repTax").value || 0);
+  for (const k of Object.keys(KINDS)) S.kinds[k] = $("#kind-" + k).checked;
+  saveS();
+  const st = oreSettings();
+  $("#feeNote").textContent = `Sales tax ${n2(st.tax * 100)}%` + (S.sellMode === "list" ? `, broker fee ${n2(st.broker * 100)}% (the most you'd pay; standings not counted)` : "") + ".";
+  $("#repNote").textContent = "NPC stations: 50% base. Upwell refineries: 50% plus rig and structure bonuses (an Athanor or Tatara with T2 rigs in nullsec is roughly 55-56%). Tax at NPC stations falls with your standing.";
+}
+// Value what is in the ship's holds right now (signed in): ore and minerals, each the best way.
+async function valueHold() {
+  const st = $("#oStatus"), out = $("#holdOut");
+  setStatus(st, "Reading your ship from EVE (the asset list can be up to an hour old)...", "busy");
+  try {
+    const r = await EVE.shipFit();
+    if (!r.ok) throw new Error(r.status === 403 ? "EVE refused: sign in again." : `Could not read your ship (HTTP ${r.status}).`);
+    const items = r.data.holds.filter(x => ORE.has(x.type) || D.minerals[x.type]);
+    if (!items.length) { out.hidden = false; out.innerHTML = `<h3>${esc(r.data.shipName)}</h3><p class="note">No ore or minerals in its holds (as of ${new Date(r.data.asOf).toLocaleTimeString()}).</p>`; setStatus(st, ""); return; }
+    const ores = items.filter(x => ORE.has(x.type)).map(x => ORE.get(x.type));
+    const rawOf = o => o.raw ? ORE.get(o.raw) : o;
+    const books = await booksAt(S.hub, [...typesFor(ores.map(rawOf)), ...ores.map(o => o.id), ...items.map(x => x.type)]);
+    const sst = oreSettings(); let total = 0;
+    const rows = items.map(x => {
+      const o = ORE.get(x.type);
+      if (!o) { const v = x.qty * C.netPrice(books.get(x.type), sst.mode, sst.tax, sst.broker); total += v; return [x.type, T(x.type).n || D.minerals[x.type], x.qty, v, "Sell"]; }
+      const r0 = valueOre(rawOf(o), books, sst), m3 = x.qty * rawOf(o).v;
+      const sellSelf = C.netPrice(books.get(o.id), sst.mode, sst.tax, sst.broker) * x.qty;
+      const best = Math.max(sellSelf, o.raw ? r0.ref * m3 : r0.best * m3);
+      total += best;
+      return [x.type, o.n, x.qty, best, best === sellSelf ? "Sell as is" : "Reprocess"];
+    });
+    out.hidden = false;
+    out.innerHTML = `<h3>${esc(r.data.shipName)} <span class="tag">${esc(T(r.data.shipTypeId).n || "")}</span></h3><div class="big">${isk(total)} ISK</div>
+    <p class="note">At ${HUBS[S.hub].name}, the best way for each item, with your Ore Values settings. Asset list as of ${new Date(r.data.asOf).toLocaleTimeString()}.</p>
+    <div class="mins">${rows.map(([id, n, q, v, how]) => `<div><span>${n0(q)} × ${esc(n)}</span><b>${isk(v)} <span class="note">${how}</span></b></div>`).join("")}</div>`;
+    setStatus(st, "");
+  } catch (e) { setStatus(st, e.message, "err"); }
+}
+
+// ================= YIELD CALCULATOR =================
+// A new user starts with a Venture and two Miner I, so every tab has numbers at once.
+const MINER_I = D ? +Object.keys(D.types).find(k => D.types[k].n === "Miner I") || 0 : 0;
+const FIT = Object.assign({ ship: 32880, hi: [{ id: MINER_I }, { id: MINER_I }], mid: [], lo: [], rig: [], drone: 0, droneN: 0, skillMode: "4", custom: {} }, load("fit", {}));
+const saveFit = () => store("fit", FIT);
+const has = (id, eff) => (T(id).e || []).some(e => (D.effects[e] || [])[0] === eff);
+const shipA = (k, id = FIT.ship) => (T(id).a || {})[k] || 0;
+// Fitting rules live in lib/mining-core.js (shared with the best-fit search): slot type, canFitShipGroup
+// restrictions, rig size, crystal charge group and size, crystal ore lists.
+const slotOf = id => C.slotOf(D, id);
+const fitsShip = mid => C.fitsShip(D, FIT.ship, mid);
+const crystalFits = (mod, ch) => C.crystalFits(D, mod, ch);
+const crystalOres = ch => C.crystalOres(D, ch);
+function skillLevels() {
+  const m = FIT.skillMode, out = {};
+  for (const id of D.fit.skills) out[id] = m === "me" ? (ME && ME.skills ? ME.skills[id] || 0 : 0) : m === "custom" ? (FIT.custom[id] ?? 4) : +m;
+  return out;
+}
+let YC = { oreRate: 0, iceRate: 0, hold: 0, parts: [] };
+// Yield for one ore: every module that can mine it (with its crystal's bonus only on the crystal's ores) plus drones.
+function rateFor(o) {
+  let r = 0;
+  for (const p of YC.parts) if (C.canMine(p.it, o)) r += p.cOres && p.cOres.has(o.id) ? p.withC.rate : p.noC.rate;
+  return r;
+}
+function computeYield() {
+  const skills = skillLevels();
+  const mods = [...FIT.hi.map(x => x && { id: x.id, charge: x.charge }), ...FIT.mid.map(x => x && { id: x.id }), ...FIT.lo.map(x => x && { id: x.id }), ...FIT.rig.map(x => x && { id: x.id })].filter(x => x && x.id);
+  const drones = FIT.drone && FIT.droneN ? [{ id: FIT.drone, n: FIT.droneN }] : [];
+  const F = C.fitStats(D, { ship: FIT.ship, mods, skills, drones });
+  const F0 = C.fitStats(D, { ship: FIT.ship, mods: mods.map(m => ({ id: m.id })), skills, drones });
+  const parts = [];
+  F.mods.forEach((it, i) => {
+    if (!it) return; const withC = C.minerOut(F, it), noC = C.minerOut(F0, F0.mods[i]);
+    if (withC) parts.push({ it, withC, noC: noC || withC, charge: it.charge && it.charge.id, cOres: it.charge ? crystalOres(it.charge.id) : null });
+  });
+  F.drones.forEach((it, i) => { const o = C.minerOut(F, it); if (o) parts.push({ it, withC: o, noC: o, drone: true }); });
+  const hold = F.get(F.ship, 1556) || F.get(F.ship, 38);
+  const anyOre = D.ores.find(o => o.k === "ore" && o.base === o.id);
+  YC = { F, parts, hold, iceRate: 0, oreRate: 0, oreRateNoC: 0 };
+  for (const p of parts) {
+    if (C.isIceTool(p.it)) YC.iceRate += p.withC.rate;
+    else { YC.oreRate += p.withC.rate; YC.oreRateNoC += p.noC.rate; }
+  }
+  // Fitting use against the ship's output, after skills.
+  const fitted = F.mods.filter(Boolean);
+  YC.cpu = fitted.reduce((a, m) => a + F.get(m, 50), 0); YC.cpuMax = F.get(F.ship, 48);
+  YC.pg = fitted.reduce((a, m) => a + F.get(m, 30), 0); YC.pgMax = F.get(F.ship, 11);
+  YC.cal = fitted.reduce((a, m) => a + F.get(m, 1153), 0); YC.calMax = F.get(F.ship, 1132);
+  YC.bw = drones.reduce((a, d) => a + d.n * shipA(1272, d.id), 0); YC.bwMax = F.get(F.ship, 1271);
+  YC.turrets = fitted.filter(m => has(m.id, "turretFitted")).length; YC.turretMax = shipA(102);
+  return YC;
+}
+function drawShips() {
+  const byG = {};
+  for (const id of D.fit.ships) (byG[D.groupNames[T(id).g] || "Other"] ||= []).push(id);
+  const order = ["Mining Frigate", "Expedition Frigate", "Frigate", "Mining Barge", "Exhumer", "Industrial Command Ship", "Capital Industrial Ship"];
+  const gs = Object.keys(byG).sort((a, b) => ((order.indexOf(a) + 1) || 99) - ((order.indexOf(b) + 1) || 99) || a.localeCompare(b));
+  $("#ship").innerHTML = gs.map(g => `<optgroup label="${esc(g)}">${byG[g].sort((a, b) => T(a).n.localeCompare(T(b).n)).map(id => `<option value="${id}">${esc(T(id).n)}</option>`).join("")}</optgroup>`).join("");
+  $("#ship").value = FIT.ship;
+}
+function modOptions(slot, cur) {
+  const list = D.fit.mods.filter(id => slotOf(id) === slot && fitsShip(id)).sort((a, b) => T(a).n.localeCompare(T(b).n));
+  return `<option value="">— empty —</option>` + list.map(id => `<option value="${id}" ${id === cur ? "selected" : ""}>${esc(T(id).n)}</option>`).join("");
+}
+function drawSlots() {
+  const n = { hi: shipA(14), mid: shipA(13), lo: shipA(12), rig: shipA(1137) };
+  for (const k of Object.keys(n)) { FIT[k] = (FIT[k] || []).slice(0, n[k]); while (FIT[k].length < n[k]) FIT[k].push(null); }
+  const row = (k, i, label) => {
+    const cur = FIT[k][i] && FIT[k][i].id, ch = FIT[k][i] && FIT[k][i].charge;
+    const crystals = cur ? D.fit.crystals.filter(c => crystalFits(cur, c)) : [];
+    const chSel = k === "hi" ? `<select data-ch="${i}" ${crystals.length ? "" : "disabled"} aria-label="Crystal for high slot ${i + 1}"><option value="">${crystals.length ? "— no crystal —" : "takes no crystal"}</option>${crystals.sort((a, b) => T(a).n.localeCompare(T(b).n)).map(c => `<option value="${c}" ${c === ch ? "selected" : ""}>${esc(T(c).n)}</option>`).join("")}</select>` : "";
+    return `<div class="slotrow ${k === "hi" ? "" : "nocharge"}"><span class="sk">${label}</span><select data-k="${k}" data-i="${i}" aria-label="${label}">${modOptions(k, cur)}</select>${chSel}</div>`;
+  };
+  let h = "";
+  for (let i = 0; i < n.hi; i++) h += row("hi", i, `High ${i + 1}`);
+  // Mid slots only list modules that change mining (industrial cores, survey chipsets...).
+  if (D.fit.mods.some(id => slotOf(id) === "mid" && fitsShip(id))) for (let i = 0; i < n.mid; i++) h += row("mid", i, `Mid ${i + 1}`);
+  for (let i = 0; i < n.lo; i++) h += row("lo", i, `Low ${i + 1}`);
+  for (let i = 0; i < n.rig; i++) h += row("rig", i, `Rig ${i + 1}`);
+  const drones = D.fit.drones.sort((a, b) => T(a).n.localeCompare(T(b).n));
+  if (shipA(283) > 0) h += `<div class="slotrow"><span class="sk">Drones</span><select id="drone" aria-label="Mining drones"><option value="0">— none —</option>${drones.map(id => `<option value="${id}" ${id === FIT.drone ? "selected" : ""}>${esc(T(id).n)}</option>`).join("")}</select><select id="droneN" aria-label="How many drones">${[0, 1, 2, 3, 4, 5].map(x => `<option ${x === FIT.droneN ? "selected" : ""}>${x}</option>`).join("")}</select></div>`;
+  else { FIT.drone = 0; FIT.droneN = 0; }
+  $("#slots").innerHTML = h;
+}
+function drawSkills() {
+  const lv = skillLevels(), mode = FIT.skillMode;
+  const rel = D.fit.skills.filter(id => T(id).g === 1218 || [3426, 3413, 3436, 3438, 3442, 22541, 43702, 32918, 33856, 17940, 22551, 29637, 28374, 28615].includes(id) || Object.values(T(FIT.ship).a || {}).includes(id))
+    .sort((a, b) => T(a).n.localeCompare(T(b).n));
+  $("#skillGrid").innerHTML = rel.map(id => `<label>${esc(T(id).n)}<select data-sk="${id}" ${mode === "custom" ? "" : "disabled"}>${LV.map(l => `<option ${+l === lv[id] ? "selected" : ""}>${l}</option>`).join("")}</select></label>`).join("");
+  $("#skillSum").textContent = mode === "custom" ? "(custom: change any level below)" : mode === "me" ? `(${ME ? esc(ME.name) : "character"}'s skills)` : `(every skill at ${mode})`;
+}
+function drawYield() {
+  computeYield();
+  const y = YC, perMin = (y.oreRate + y.iceRate) * 60;
+  $("#shipImg").src = `https://images.evetech.net/types/${FIT.ship}/render?size=128`;
+  $("#shipNote").textContent = `${D.groupNames[T(FIT.ship).g] || ""} · ${shipA(14)} high, ${shipA(13)} mid, ${shipA(12)} low, ${shipA(1137)} rig slots`;
+  const lim = (k, v, max, unit) => `<div class="limrow ${v > max + 1e-6 ? "over" : ""}"><span>${k}</span><div class="bar ${v > max + 1e-6 ? "over" : ""}"><i style="width:${max ? Math.min(100, v / max * 100) : 0}%"></i></div><span>${n1(v)} / ${n1(max)} ${unit}</span></div>`;
+  $("#lims").innerHTML = lim("CPU", y.cpu, y.cpuMax, "tf") + lim("Powergrid", y.pg, y.pgMax, "MW") + (y.calMax ? lim("Calibration", y.cal, y.calMax, "") : "") +
+    (y.turretMax || y.turrets ? lim("Turret points", y.turrets, y.turretMax, "") : "") + (y.bwMax ? lim("Drone bandwidth", y.bw, y.bwMax, "Mbit/s") : "");
+  const fill = y.hold && (y.oreRate || y.iceRate) ? y.hold / (y.oreRate || y.iceRate) : 0;
+  $("#yKpis").innerHTML = `<div class="kpi"><div class="v">${n0(perMin)} m³</div><div class="k">per minute${y.iceRate && y.oreRate ? " (ore + ice)" : y.iceRate ? " (ice)" : ""}</div></div>
+    <div class="kpi"><div class="v">${n0(perMin * 60)} m³</div><div class="k">per hour</div></div>
+    <div class="kpi"><div class="v acc">${n0(y.hold)} m³</div><div class="k">${(T(FIT.ship).a || {})[1556] ? "mining hold" : "cargo hold"} (with skills)</div></div>
+    <div class="kpi"><div class="v acc">${fill ? mins(fill) : "—"}</div><div class="k">to fill the hold</div></div>`;
+  const rows = y.parts.map(p => {
+    const o = p.withC, name = T(p.it.id).n + (p.charge ? ` + ${T(p.charge).n}` : "");
+    return `<tr><td class="nm"><div class="nmw"><img src="${icon(p.it.id)}" alt="">${esc(name)}${p.drone ? ` <span class="tag">× ${o.n}</span>` : ""}</div></td>
+    <td>${n1(o.amt)}</td><td>${n1(o.dur)} s</td><td>${n2(o.crit * 100)}% × ${n2(o.critBonus)}</td><td>${n0(o.rate * 60)}</td><td>${p.charge ? n0(p.noC.rate * 60) : "—"}</td><td>${n1(o.range / 1000)} km</td><td>${n1(o.wasteChance)}%</td></tr>`;
+  }).join("");
+  $("#yTable").innerHTML = `<thead><tr><th>Module</th><th>m³ per cycle</th><th>Cycle</th><th>Crit chance × yield</th><th>m³/min</th><th>m³/min without crystal</th><th>Range</th><th>Waste chance</th></tr></thead><tbody>${rows || `<tr><td colspan="8" class="note">No mining modules fitted yet: pick them in the high slots.</td></tr>`}</tbody>`;
+  // The planner uses this fit unless the user typed their own numbers there.
+  if (S.pRateOver == null) $("#pRate").value = Math.round((y.oreRate) * 3600);
+  if (S.pHoldOver == null) $("#pHold").value = Math.round(y.hold);
+  if (ORE_BOOKS) drawOres();
+}
+function onFitChange(e) {
+  const t = e.target;
+  if (t.id === "ship") { FIT.ship = +t.value; drawSlots(); drawSkills(); }
+  else if (t.dataset.k) { const k = t.dataset.k, i = +t.dataset.i; FIT[k][i] = t.value ? { id: +t.value } : null; if (k === "hi") drawSlots(); }
+  else if (t.dataset.ch) { const i = +t.dataset.ch; if (FIT.hi[i]) FIT.hi[i].charge = +t.value || 0; }
+  else if (t.id === "drone") { FIT.drone = +t.value; if (FIT.drone && !FIT.droneN) { FIT.droneN = Math.min(5, Math.floor((shipA(1271) || 0) / (shipA(1272, FIT.drone) || 5)) || 1); drawSlots(); } }
+  else if (t.id === "droneN") FIT.droneN = +t.value;
+  else if (t.id === "skillMode") { FIT.skillMode = t.value; drawSkills(); }
+  else if (t.dataset.sk) FIT.custom[t.dataset.sk] = +t.value;
+  else return;
+  saveFit(); drawYield();
+}
+// ---------- presets and best fit ----------
+const PF_META = { t12: [0, 1, 2], fac: [0, 1, 2, 3, 4], all: null };
+const PF_DEFAULT = { ore: "Veldspar", ice: "Clear Icicle", moon: "Bitumens" };
+const pfOres = k => D.ores.filter(o => o.k === k && !o.raw && isBaseGrade(o)).sort((a, b) => a.n.localeCompare(b.n));
+const pfOre = () => { const l = pfOres(S.pfKind); return l.find(o => o.id === S.pfOre[S.pfKind]) || l.find(o => o.n === PF_DEFAULT[S.pfKind]) || l[0]; };
+function drawPfForm() {
+  $("#pfKind").value = S.pfKind; $("#pfMeta").value = S.pfMeta;
+  const cur = pfOre();
+  $("#pfOre").innerHTML = pfOres(S.pfKind).map(o => `<option value="${o.id}" ${o === cur ? "selected" : ""}>${esc(o.n)}</option>`).join("");
+}
+// Skill level of any skill id under the current "Pilot skills" choice (also skills outside the grid, for requirements).
+function lvOfMode() {
+  const m = FIT.skillMode;
+  return id => m === "me" ? (ME && ME.skills ? ME.skills[id] || 0 : 0) : m === "custom" ? (FIT.custom[id] ?? 4) : +m;
+}
+const metaOpt = () => { const m = PF_META[S.pfMeta]; return m || [...Array(60).keys()]; };
+// A short description of a fit: "2× Strip Miner I, 3× Mining Laser Upgrade II, 5× Mining Drone I".
+function fitText(f) {
+  const c = new Map();
+  for (const x of [...f.hi, ...f.mid, ...f.lo, ...f.rig]) if (x) { const k = T(x.id).n + (x.charge ? ` + ${T(x.charge).n}` : ""); c.set(k, (c.get(k) || 0) + 1); }
+  if (f.drone && f.droneN) c.set(T(f.drone).n, f.droneN);
+  return [...c].map(([k, n]) => `${n}× ${k}`).join(", ");
+}
+function applyFit(f, skillMode, custom) {
+  FIT.ship = f.ship; FIT.hi = f.hi.map(x => x && { ...x }); FIT.mid = f.mid.map(x => x && { ...x }); FIT.lo = f.lo.map(x => x && { ...x }); FIT.rig = f.rig.map(x => x && { ...x });
+  FIT.drone = f.drone || 0; FIT.droneN = f.droneN || 0;
+  if (skillMode) { FIT.skillMode = skillMode; if (custom) FIT.custom = { ...custom }; }
+  $("#ship").value = FIT.ship; $("#skillMode").value = FIT.skillMode;
+  saveFit(); drawSlots(); drawSkills(); drawYield();
+}
+function bestForMe() {
+  const st = $("#pfStatus"), ore = pfOre();
+  const r = C.bestFit(D, { ship: FIT.ship, ore, lvOf: lvOfMode(), meta: metaOpt() });
+  if (!r) { setStatus(st, `A ${T(FIT.ship).n} can't mine ${ore.n} with these skills and modules.`, "err"); return; }
+  applyFit(r.fit);
+  setStatus(st, `Best ${T(FIT.ship).n} fit for ${ore.n}: ${n0(r.rate * 3600)} m³/hour.`);
+}
+// Preset table: one row per stage and ship, worked out a few at a time so the page stays responsive.
+let PF_ROWS = [], PF_RUN = 0;
+const shipByName = n => D.fit.ships.find(id => T(id).n === n);
+function runPresets() {
+  const run = ++PF_RUN, ore = pfOre(), meta = metaOpt();
+  PF_ROWS = [];
+  for (const sg of C.PRESET_STAGES) for (const n of sg.ships) { const ship = shipByName(n); if (ship) PF_ROWS.push({ sg, ship, sk: C.stageSkills(D, sg.lv, ship), r: undefined }); }
+  $("#pfSub").textContent = `for ${ore.n}`;
+  drawPresets();
+  let i = 0;
+  const step = () => {
+    if (run !== PF_RUN) return;
+    const t0 = Date.now();
+    while (i < PF_ROWS.length && Date.now() - t0 < 40) { const p = PF_ROWS[i++]; p.r = C.bestFit(D, { ship: p.ship, ore, lvOf: id => p.sk[id] ?? p.sg.lv, meta }); }
+    drawPresets();
+    if (i < PF_ROWS.length) setTimeout(step, 0);
+  };
+  setTimeout(step, 0);
+}
+function drawPresets() {
+  const roman = ["0", "I", "II", "III", "IV", "V"];
+  let last = null;
+  $("#pfTable").innerHTML = `<thead><tr><th class="l">Stage</th><th class="l">Ship</th><th class="l">Fit</th><th>m³/hour</th><th></th></tr></thead><tbody>${PF_ROWS.map((p, x) => {
+    const first = p.sg !== last; last = p.sg;
+    const raised = Object.entries(p.sk).some(([, l]) => l > p.sg.lv);
+    const fit = p.r === undefined ? `<span class="note">working it out...</span>` : p.r ? esc(fitText(p.r.fit)) : `<span class="note">can't mine this with these skills</span>`;
+    return `<tr${first && x ? ` style="border-top:2px solid var(--line)"` : ""}><td class="l">${first ? `<b>${esc(p.sg.name)}</b><br><span class="note">skills ${roman[p.sg.lv]}${raised ? "+" : ""}</span>` : ""}</td>
+      <td class="l"><div class="nmw"><img src="${icon(p.ship)}" alt="">${esc(T(p.ship).n)}</div></td><td class="l wrapc" style="white-space:normal;min-width:260px">${fit}</td>
+      <td class="p">${p.r ? n0(p.r.rate * 3600) : "—"}</td><td><button class="ghost small" type="button" data-preset="${x}" ${p.r ? "" : "disabled"}>Use</button></td></tr>`;
+  }).join("")}</tbody>`;
+}
+function usePreset(x) {
+  const p = PF_ROWS[x]; if (!p || !p.r) return;
+  // "All skills N" when the menu has that level and nothing was raised; otherwise custom levels.
+  const uniform = Object.values(p.sk).every(l => l === p.sg.lv) && [...$("#skillMode").options].some(o => o.value === String(p.sg.lv));
+  applyFit(p.r.fit, uniform ? String(p.sg.lv) : "custom", uniform ? null : p.sk);
+  setStatus($("#pfStatus"), `${p.sg.name}: ${T(p.ship).n} for ${pfOre().n}, ${n0(p.r.rate * 3600)} m³/hour.` + (uniform ? "" : " Skills set to custom: the ones the hull needs are raised."));
+  const top = $("#v-yield"); if (top.scrollIntoView) top.scrollIntoView({ behavior: "smooth" });
+}
+function onPfChange(e) {
+  const t = e.target;
+  if (t.id === "pfKind") { S.pfKind = t.value; drawPfForm(); }
+  else if (t.id === "pfOre") S.pfOre[S.pfKind] = +t.value;
+  else if (t.id === "pfMeta") S.pfMeta = t.value;
+  else return;
+  e.stopPropagation(); saveS(); runPresets();
+}
+
+// Loads the ship the character flies: hull, fitted modules and crystals (from the asset list), mining drones in its bay.
+async function loadMyShip() {
+  const st = $("#yStatus");
+  setStatus(st, "Reading your ship from EVE...", "busy");
+  try {
+    const r = await EVE.shipFit();
+    if (!r.ok) throw new Error(r.status === 403 ? "EVE refused: sign in again." : `Could not read your ship (HTTP ${r.status}).`);
+    const d = r.data;
+    if (!D.types[d.shipTypeId] || !D.fit.ships.includes(d.shipTypeId)) {
+      setStatus(st, `You are flying a ${T(d.shipTypeId).n || "ship"} that EVE Miner doesn't treat as a mining ship; pick one from the list.`, "err"); return;
+    }
+    FIT.ship = d.shipTypeId; FIT.hi = []; FIT.mid = []; FIT.lo = []; FIT.rig = []; FIT.drone = 0; FIT.droneN = 0;
+    const map = { HiSlot: "hi", MedSlot: "mid", LoSlot: "lo", RigSlot: "rig" }; let skipped = 0;
+    for (const x of d.items) {
+      const m = /^(HiSlot|MedSlot|LoSlot|RigSlot)(\d)$/.exec(x.flag); if (!m) continue;
+      const k = map[m[1]], i = +m[2];
+      if (D.fit.crystals.includes(x.type)) { FIT[k][i] = FIT[k][i] || { id: 0 }; FIT[k][i].charge = x.type; continue; }
+      if (D.fit.mods.includes(x.type)) FIT[k][i] = { ...(FIT[k][i] || {}), id: x.type }; else skipped++;
+    }
+    for (const k of Object.keys(map).map(z => map[z])) FIT[k] = FIT[k].map(s => s && s.id ? s : null);
+    const dr = d.holds.filter(x => x.flag === "DroneBay" && D.fit.drones.includes(x.type)).sort((a, b) => b.qty - a.qty)[0];
+    if (dr) { FIT.drone = dr.type; FIT.droneN = Math.min(5, dr.qty); }
+    if (ME && ME.skills) FIT.skillMode = "me";
+    $("#ship").value = FIT.ship; $("#skillMode").value = FIT.skillMode;
+    saveFit(); drawSlots(); drawSkills(); drawYield();
+    setStatus(st, `Loaded ${d.shipName || T(d.shipTypeId).n}${skipped ? ` (${skipped} module${skipped > 1 ? "s" : ""} that don't affect mining left out)` : ""}. EVE's asset list can be up to an hour old.`);
+  } catch (e) { setStatus(st, e.message, "err"); }
+}
+
+// ================= MINING PLANNER =================
+const SYS_BY_NAME = new Map(MAP.names.map((n, i) => [n.toLowerCase(), i]));
+let PLAN = [], PLAN_SORT = { k: "score", asc: false }, PLAN_META = null;
+function drawOreChoice() {
+  const base = C.BELT_ORES;
+  $("#pOre").innerHTML = `<option value="best">Best ore in each system</option>` + base.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  $("#pOre").value = S.pOre;
+}
+async function runPlanner(ev) {
+  if (ev) ev.preventDefault();
+  const st = $("#pStatus");
+  S.pStart = $("#pStart").value.trim(); S.pRadius = Math.max(0, Math.min(15, Math.round(+$("#pRadius").value || 0)));
+  S.pSec = $("#pSec").value; S.pPref = $("#pPref").value; S.pOre = $("#pOre").value;
+  S.pJump = Math.max(10, +$("#pJump").value || 45); S.pDock = Math.max(0, +$("#pDock").value || 0); saveS();
+  const si = SYS_BY_NAME.get(S.pStart.toLowerCase());
+  if (si == null) { setStatus(st, "Type a known-space system name (the list suggests them as you type).", "err"); return; }
+  const rate = (+$("#pRate").value || 0) / 3600, hold = +$("#pHold").value || 0;
+  if (!(rate > 0)) { setStatus(st, "Set your yield first (fit a mining ship on the Yield Calculator tab, or type m³/hour).", "err"); return; }
+  $("#planGo").disabled = true;
+  try {
+    setStatus(st, "Counting jumps...", "busy");
+    const tree = C.treeFrom(MAP, MAP.ids[si], S.pPref);
+    const okSec = i => S.pSec === "all" || (S.pSec === "low" ? MAP.sec[i] > 0 : MAP.sec[i] >= 450);
+    const area = [];
+    for (let i = 0; i < MAP.ids.length; i++) if (tree.hops[i] >= 0 && tree.hops[i] <= S.pRadius && MAP.belts[i] > 0 && okSec(i) && (S.pPref !== "secure" || tree.cost[i] < 10000 || S.pSec !== "high")) area.push(i);
+    if (!area.length) throw new Error("No systems with asteroid belts in that radius. Try a bigger radius or allow lowsec.");
+    // Stations: per system, the best reprocessing station; jumps from every system to the nearest one.
+    const stations = MAP.st.map(s => s ? s.split(",").map(x => x.split(":").map(Number)) : []);
+    const repSys = []; stations.forEach((l, i) => { if (l.some(x => x[1] > 0) && okSec(i)) repSys.push(i); });
+    const toRep = C.nearestOf(MAP, repSys);
+    const hubI = C.mapIndex(MAP).get(HUBS[S.hub].system), hubTree = C.treeFrom(MAP, HUBS[S.hub].system, S.pPref);
+    // Prices for the belt ores (base grade), compressed and their minerals.
+    const beltOres = C.BELT_ORES.map(n => D.ores.find(o => o.n === n)).filter(Boolean);
+    setStatus(st, `Reading ${HUBS[S.hub].name} prices...`, "busy");
+    const books = await booksAt(S.hub, typesFor(beltOres), (d, n) => setStatus(st, `Reading ${HUBS[S.hub].name} prices: ${d} of ${n} items`, "busy"));
+    const sst = oreSettings();
+    const val = new Map(beltOres.map(o => [o.n, valueOre(o, books, sst)]));
+    setStatus(st, "Reading kills and traffic for the last hour...", "busy");
+    const [kills, jumps] = await Promise.all([getJSON(`${ESI}/universe/system_kills/?datasource=tranquility`), getJSON(`${ESI}/universe/system_jumps/?datasource=tranquility`)]);
+    const K = new Map((kills.ok ? kills.data : []).map(x => [x.system_id, x])), J = new Map((jumps.ok ? jumps.data : []).map(x => [x.system_id, x.ship_jumps]));
+    // Belt ores per system from the region/security tables; a chosen ore keeps only systems that have it (or may).
+    const oresOf = i => C.beltOres(MAP.sec[i], MAP.q[i], MAP.regions[MAP.region[i]] || "");
+    const mine = S.pOre === "best" ? area : area.filter(i => oresOf(i).ores.includes(S.pOre));
+    if (!mine.length) throw new Error(`No systems within ${S.pRadius} jumps have ${S.pOre} in their belts. Try a bigger radius, allow lowsec or nullsec, or pick another ore.`);
+    PLAN = mine.map(i => {
+      const sec = MAP.sec[i], bo = oresOf(i), here = bo.ores;
+      const cands = S.pOre === "best" ? here : [S.pOre];
+      let best = null;
+      for (const n of cands) {
+        const v = val.get(n); if (!v || !(v.best > 0)) continue;
+        const h = v.best * rateFor(v.o) * 3600;
+        if (!best || h > best.h) best = { n, v, h, usual: !bo.guess };
+      }
+      const stHere = stations[i].filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]);
+      const jRep = stHere.length ? 0 : toRep[i];
+      const share = C.miningShare(hold, rate, jRep < 0 ? 99 : jRep, S.pJump, S.pDock);
+      const k = K.get(MAP.ids[i]) || {};
+      const iskh = best ? best.h * share : 0;
+      const safety = (sec >= 450 ? 1 : sec > 0 ? 0.7 : 0.5) * Math.pow(0.92, Math.min(20, k.ship_kills || 0));
+      return { i, sys: MAP.ids[i], name: MAP.names[i], sec, region: MAP.regions[MAP.region[i]] || "", jumps: tree.hops[i], belts: MAP.belts[i], ores: here, guess: bo.guess, best, jRep,
+        stHere, toHub: hubTree.hops[i], ship: k.ship_kills || 0, pod: k.pod_kills || 0, npc: k.npc_kills || 0, traffic: J.get(MAP.ids[i]) || 0, share, iskh, score: iskh * safety };
+    });
+    PLAN_META = { start: si, tree, rate, hold, val, toRep };
+    drawPlan();
+    setStatus(st, `${PLAN.length} systems with ${S.pOre === "best" ? "belts" : S.pOre + " in their belts"} within ${S.pRadius} jumps of ${MAP.names[si]}.` + (kills.ok ? "" : " (Kill figures could not be loaded.)"));
+  } catch (e) { setStatus(st, e.message, "err"); $("#planOut").hidden = true; }
+  $("#planGo").disabled = false;
+}
+function drawPlan() {
+  const k = PLAN_SORT.k, dir = PLAN_SORT.asc ? 1 : -1;
+  const keyOf = r => k === "name" ? r.name : k === "best" ? (r.best ? r.best.h : 0) : r[k];
+  // Ties go to the better score, then fewer jumps, then the quieter system (fewer jumps through it in the last hour).
+  PLAN.sort((a, b) => (k === "name" ? dir * a.name.localeCompare(b.name) : dir * ((keyOf(a) || 0) - (keyOf(b) || 0))) || b.score - a.score || a.jumps - b.jumps || a.traffic - b.traffic);
+  const cols = [["name", "System", "l"], ["sec", "Sec"], ["jumps", "Jumps"], ["belts", "Belts"], ["ores", "Belt ores", "l"], ["best", "Ore to mine", "l"], ["jRep", "Reprocessing station"], ["toHub", "Jumps to " + HUBS[S.hub].name], ["ship", "Ship kills"], ["pod", "Pod kills"], ["traffic", "Jumps (1h)"], ["iskh", "ISK/hour"], ["score", "Score"], ["go", ""]];
+  const th = cols.map(([key, label, cl]) => `<th ${key !== "go" && key !== "ores" ? `data-k="${key}" tabindex="0"` : ""} class="${cl || ""} ${PLAN_SORT.k === key ? "on" + (PLAN_SORT.asc ? " asc" : "") : ""}">${label}</th>`).join("");
+  $("#planTable").innerHTML = `<thead><tr>${th}</tr></thead><tbody>${PLAN.slice(0, 300).map((r, x) => `<tr class="clk" data-x="${x}">
+    <td class="nm"><div class="nmw" style="min-width:140px"><span><b>${esc(r.name)}</b><br><span class="note">${esc(r.region)}</span></span></div></td>
+    <td>${secHtml(r.sec)}</td><td>${r.jumps}</td><td>${r.belts}</td><td class="wrapc note">${r.ores.join(", ") || "not known"}${r.guess && r.ores.length ? " (maybe)" : ""}</td>
+    <td class="l">${r.best ? esc(r.best.n) + (r.best.usual ? "" : ` <span class="tag warn" title="The ore table has no clear answer for this system">maybe</span>`) + `<br><span class="note">${isk(r.best.v.best)}/m³ · ${WAY[r.best.v.bestK].toLowerCase()}</span>` : "—"}</td>
+    <td>${r.jRep === 0 ? `<span class="ok">in system</span>` : r.jRep > 0 ? r.jRep + " jumps" : "—"}</td><td>${r.toHub >= 0 ? r.toHub : "—"}</td>
+    <td class="${r.ship ? "badt" : ""}">${r.ship}</td><td>${r.pod}</td><td>${r.traffic}</td>
+    <td class="p">${isk(r.iskh)}</td><td class="best">${isk(r.score)}</td>
+    <td><button class="ghost small" type="button" data-route="${r.sys}" ${ME ? "" : "disabled title=\"Sign in (Settings) to send routes to EVE\""}>Set route</button></td></tr>`).join("")}</tbody>`;
+  $("#planOut").hidden = false;
+}
+const STN_NAMES = new Map();
+async function stationName(id) {
+  if (STN_NAMES.has(id)) return STN_NAMES.get(id);
+  const r = await getJSON(`${ESI}/universe/stations/${id}/?datasource=tranquility`);
+  const n = r.ok ? r.data.name : "Station " + id; STN_NAMES.set(id, n); return n;
+}
+// Where you unload in system r: its best reprocessing station (of equals, the one with a belt nearest to it), else
+// the stargate toward the nearest one.
+function beltAnchor(r) {
+  const st = MAP.st[r.i] ? MAP.st[r.i].split(",").map(x => x.split(":").map(Number)) : [], sp = C.stationPos(MAP, r.i);
+  const near = j => { const l = C.beltsOf(MAP, r.i, sp[j]); return l.length ? l[0].au : Infinity; };
+  let b = -1; st.forEach((s, j) => { if (s[1] > 0 && sp[j] && (b < 0 || s[1] > st[b][1] || (s[1] === st[b][1] && near(j) < near(b)))) b = j; });
+  if (b >= 0) return { p: sp[b], stn: st[b][0], label: "the reprocessing station" };
+  const tr = PLAN_META.toRep;
+  if (tr && tr[r.i] > 0) for (const g of MAP.gp[r.i] ? MAP.gp[r.i].split(",") : []) {
+    const [j, x, y, z] = g.split(":").map(Number);
+    if (tr[j] === tr[r.i] - 1) return { p: [x, y, z], label: `the ${MAP.names[j]} gate`, why: " (the way to the nearest reprocessing station), where you leave to unload" };
+  }
+  return null;
+}
+// "Which belt": every belt of the system, nearest to where you unload first (shorter warps each trip).
+function beltPlanHtml(r) {
+  const path = C.pathTo(PLAN_META.tree, r.i), prev = path.length > 1 ? path[path.length - 2] : -1;
+  const A = beltAnchor(r);
+  let arr = prev >= 0 ? C.gateTo(MAP, r.i, prev) : null;
+  if (arr && A && arr.join() === A.p.join()) arr = null; // you arrive and leave by the same gate: one column is enough
+  const belts = C.beltsOf(MAP, r.i, A ? A.p : arr);
+  if (!belts.length) return "";
+  const dist = (b, p) => { if (!p) return "—"; const v = Math.hypot(b.p[0] - p[0], b.p[1] - p[1], b.p[2] - p[2]) / 100; return v < 0.1 ? "&lt; 0.1 AU" : v.toFixed(1) + " AU"; };
+  const top = belts[0], ores = r.ores.length ? esc(r.ores.join(", ")) : "";
+  const why = A ? `: of the ${belts.length} belts here it is the closest to <b id="beltAnchor" ${A.stn ? `data-stn="${A.stn}"` : ""}>${esc(A.label)}</b>${A.why || ", where you unload"}, so every trip there and back is short`
+    : arr ? `: the closest to the ${esc(MAP.names[prev])} gate you arrive by` : "";
+  const oreLine = !ores ? "The ore table doesn't cover this region, so its belt ores are not known."
+    : r.guess ? `Its belts may have ${ores} (the ore table has no clear answer for this system).`
+    : `Belts here spawn ${ores}${S.pOre !== "best" ? `, ${esc(S.pOre)} among them` : ""}; every belt in a system draws from the same list.`;
+  return `<h3 style="margin-top:14px">Which belt</h3>
+  <p>Warp to <b class="p">${esc(top.name)}</b>${why}. ${oreLine} If it is mined out or busy, take the next one down.</p>
+  <div class="tw" style="max-height:320px"><table><thead><tr><th class="l">Belt</th>${A ? "<th>From where you unload</th>" : ""}${arr ? `<th>From the ${esc(MAP.names[prev])} gate</th>` : ""}</tr></thead><tbody>
+  ${belts.map((b, x) => `<tr${x === 0 ? ` class="sel"` : ""}><td class="l">${esc(b.name)}</td>${A ? `<td>${dist(b, A.p)}</td>` : ""}${arr ? `<td>${dist(b, arr)}</td>` : ""}</tr>`).join("")}</tbody></table></div>
+  <p class="note">Set route can only take the autopilot to the system. In space, warp to the belt from the Overview or by right-clicking in space › Asteroid Belts. Belt ores come from EVE University's ore table (CCP doesn't publish them), so treat them as a guide.</p>`;
+}
+async function drawPlanDetail(r) {
+  const box = $("#planDetail"); box.hidden = false;
+  $$("#planTable tbody tr").forEach(tr => tr.classList.toggle("sel", PLAN[+tr.dataset.x] === r));
+  const path = C.pathTo(PLAN_META.tree, r.i).map(i => `<span class="sec" style="--c:${secColor(MAP.sec[i])}" title="${esc(MAP.names[i])} ${C.secText(MAP.sec[i])}">&nbsp;</span>`).join(" ");
+  const fill = PLAN_META.hold / PLAN_META.rate;
+  box.innerHTML = `<h3>${esc(r.name)} ${secHtml(r.sec)} <span class="tag">${esc(r.region)}</span></h3>
+  <p class="note">Route from ${esc(MAP.names[PLAN_META.start])}: ${r.jumps} jump${r.jumps === 1 ? "" : "s"} ${path}</p>
+  <div class="mins">
+    <div><span>Asteroid belts</span><b>${r.belts}</b></div>
+    <div><span>Hold fills in</span><b>${mins(fill)}</b></div>
+    <div><span>Time spent mining (rest is trips)</span><b>${n0(r.share * 100)}%</b></div>
+    <div><span>NPC kills last hour (belt rats)</span><b>${r.npc}</b></div>
+  </div>
+  ${beltPlanHtml(r)}
+  <h3 style="margin-top:14px">Stations here</h3><div id="stnList" class="mins"><div class="note">Loading names...</div></div>
+  <div class="act" style="margin-top:12px"><button class="ghost" type="button" data-route="${r.sys}" ${ME ? "" : "disabled"}>Set route to ${esc(r.name)}</button><span id="pdStatus" class="status"></span></div>`;
+  const anc = $("#beltAnchor");
+  if (anc && anc.dataset.stn) stationName(+anc.dataset.stn).then(n => { if (anc.isConnected) anc.textContent = n; });
+  const all = (MAP.st[r.i] ? MAP.st[r.i].split(",").map(x => x.split(":").map(Number)) : []).sort((a, b) => b[1] - a[1]);
+  const names = await Promise.all(all.map(s => stationName(s[0])));
+  $("#stnList").innerHTML = all.length ? all.map((s, j) => `<div><span>${esc(names[j])}</span><b>${s[1] ? `reprocess ${s[1]}%` : `<span class="note">no reprocessing</span>`}${s[2] ? " · market" : ""} <button class="ghost small" type="button" data-route="${s[0]}" ${ME ? "" : "disabled"}>Set route</button></b></div>`).join("") : `<div class="note">No NPC stations in this system.</div>`;
+}
+
+// ================= wiring =================
+function route() {
+  const v = (location.hash || "#ores").slice(1), ok = ["ores", "yield", "planner", "settings"].includes(v) ? v : "ores";
+  $$("section[id^=v-]").forEach(s => s.hidden = s.id !== "v-" + ok);
+  $$(".tabs a").forEach(a => a.classList.toggle("on", a.dataset.v === ok));
+}
+function onSkills() {
+  for (const id of ["acct", "brok", "rep", "repEff"]) fillLv($("#" + id), S[id]);
+  $("#oreSk").innerHTML = (ME && ME.skills ? `<option value="me">My character's (per ore)</option>` : "") + LV.map(l => `<option value="${l}">${l === "0" ? "Not trained" : "All at level " + ["", "I", "II", "III", "IV", "V"][l]}</option>`).join("");
+  $("#oreSk").value = [...$("#oreSk").options].some(o => o.value === S.oreSk) ? S.oreSk : "0";
+  if (FIT.skillMode === "me" && !(ME && ME.skills)) FIT.skillMode = "4";
+  $("#skillMode").value = FIT.skillMode;
+  drawSkills(); drawYield();
+}
+function sortClick(e, sort, draw) {
+  const th = e.target.closest("th[data-k]"); if (!th) return false;
+  const k = th.dataset.k; if (sort.k === k) sort.asc = !sort.asc; else { sort.k = k; sort.asc = k === "name" || k === "jumps" || k === "jRep" || k === "toHub" || k === "ship" || k === "pod" || k === "traffic"; }
+  draw(); return true;
+}
+function init() {
+  if (!D || !MAP) { document.body.insertAdjacentHTML("afterbegin", `<p style="padding:20px;color:#ff7a6e">The data files (assets/map.js, assets/mining.js) are missing. Rebuild them with tools/build-data.js.</p>`); return; }
+  $("#hub").innerHTML = Object.entries(HUBS).map(([k, h]) => `<option value="${k}">${h.name}</option>`).join("");
+  $("#kinds").innerHTML = Object.entries(KINDS).map(([k, l]) => `<label class="chk"><input type="checkbox" id="kind-${k}" ${S.kinds[k] ? "checked" : ""}>${l}</label>`).join("");
+  $("#implant").value = S.implant;
+  for (const k of ["hub", "sellMode", "grades"]) $("#" + k).value = S[k];
+  $("#repBase").value = S.repBase; $("#repTax").value = S.repTax;
+  $("#pStart").value = S.pStart; $("#pRadius").value = S.pRadius; $("#pSec").value = S.pSec; $("#pPref").value = S.pPref; $("#pJump").value = S.pJump; $("#pDock").value = S.pDock;
+  $("#sysList").innerHTML = MAP.names.slice().sort().map(n => `<option value="${esc(n)}">`).join("");
+  $("#dataNote").innerHTML = `Bundled data from CCP's Static Data Export build ${esc(D.build)} (${esc(D.released)}): ${D.ores.length} ore types, ${D.fit.ships.length} mining ships, ${D.fit.mods.length} modules and rigs, ${D.fit.crystals.length} crystals, ${MAP.ids.length.toLocaleString()} systems with ${MAP.belts.reduce((a, b) => a + b, 0).toLocaleString()} asteroid belts. Prices, kills and traffic come live from EVE's API.`;
+  drawOreChoice(); drawShips(); drawSlots(); onSkills(); readOreForm(); drawWho(); drawPfForm(); runPresets();
+  if (S.pRateOver != null) $("#pRate").value = S.pRateOver; if (S.pHoldOver != null) $("#pHold").value = S.pHoldOver;
+
+  $("#oreForm").addEventListener("submit", runOres);
+  $("#oreForm").addEventListener("change", e => { if (e.target.closest("fieldset")) { readOreForm(); if (ORE_BOOKS && ORE_HUB === S.hub && shownOres().every(o => typesFor([o]).every(t => ORE_BOOKS.has(t)))) drawOres(); } });
+  $("#oreTable").addEventListener("click", e => { if (sortClick(e, ORE_SORT, drawOres)) return; const tr = e.target.closest("tr[data-i]"); if (tr) drawOreDetail(ORE_ROWS[+tr.dataset.i].o.id); });
+  $("#holdGo").addEventListener("click", valueHold);
+  $("#pfBox").addEventListener("change", onPfChange);
+  $("#v-yield").addEventListener("change", onFitChange);
+  $("#myShip").addEventListener("click", loadMyShip);
+  $("#pfMine").addEventListener("click", bestForMe);
+  $("#pfTable").addEventListener("click", e => { const b = e.target.closest("button[data-preset]"); if (b) usePreset(+b.dataset.preset); });
+  $("#planForm").addEventListener("submit", runPlanner);
+  $("#pRate").addEventListener("input", e => { S.pRateOver = e.target.value === "" ? null : +e.target.value; saveS(); });
+  $("#pHold").addEventListener("input", e => { S.pHoldOver = e.target.value === "" ? null : +e.target.value; saveS(); });
+  $("#planTable").addEventListener("click", e => { if (sortClick(e, PLAN_SORT, drawPlan)) return; if (e.target.closest("button")) return; const tr = e.target.closest("tr[data-x]"); if (tr) drawPlanDetail(PLAN[+tr.dataset.x]); });
+  document.addEventListener("click", e => {
+    const b = e.target.closest("button[data-route]"); if (!b || b.disabled) return;
+    const id = +b.dataset.route, name = id >= 60000000 ? (STN_NAMES.get(id) || "the station") : MAP.names[C.mapIndex(MAP).get(id)];
+    setRoute([id], name, b.closest("#planDetail") ? $("#pdStatus") : $("#pStatus"));
+  });
+  $("#useLoc").addEventListener("click", async () => {
+    const r = await EVE.esi(`/characters/${ME.id}/location/`);
+    if (r.ok) { const i = C.mapIndex(MAP).get(r.data.solar_system_id); if (i != null) { $("#pStart").value = MAP.names[i]; setStatus($("#pStatus"), `You are in ${MAP.names[i]}.`); } else setStatus($("#pStatus"), "You are in a system that's not on the star map (wormhole space?).", "err"); }
+    else setStatus($("#pStatus"), `Could not read your location (HTTP ${r.status}).`, "err");
+  });
+  $("#signIn").addEventListener("click", signIn);
+  $("#signOut").addEventListener("click", signOut);
+  $("#clearCache").addEventListener("click", () => { BOOKS.clear(); ORE_BOOKS = null; $("#oreOut").hidden = true; });
+  $("#theme").addEventListener("click", () => { const t = document.documentElement.dataset.theme === "light" ? "dark" : "light"; document.documentElement.dataset.theme = t; try { localStorage.setItem("em:theme", JSON.stringify(t).replace(/"/g, "")); } catch (e) {} drawTheme(); });
+  const drawTheme = () => $("#theme").textContent = document.documentElement.dataset.theme === "light" ? "Dark theme" : "Light theme";
+  drawTheme();
+  document.addEventListener("keydown", e => {
+    if (e.target.closest("input,select,textarea") || e.ctrlKey || e.metaKey || e.altKey) return;
+    const v = { 1: "ores", 2: "yield", 3: "planner", 4: "settings" }[e.key]; if (v) location.hash = "#" + v;
+    if (e.key === "t" || e.key === "T") $("#theme").click();
+  });
+  window.addEventListener("hashchange", route); route();
+  meLoad();
+}
+init();
+</script>
+</body>
+</html>
