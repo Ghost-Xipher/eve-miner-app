@@ -194,6 +194,12 @@ a{color:var(--acc)}
 <details class="panel" id="skillBox"><summary><b>Skill levels used</b> <span class="note" id="skillSum"></span></summary><div class="skillgrid" id="skillGrid"></div></details>
 <div class="kpis" id="yKpis"></div>
 <div class="tw"><table id="yTable"></table></div>
+<div class="panel" id="yPrice"><h3>Price <span class="note" id="yPriceSub"></span></h3>
+  <div class="act"><label>Ore you're mining<select id="yOre"></select></label><span id="yPStatus" class="status"></span></div>
+  <div class="kpis" id="yPKpis"></div>
+  <div class="tw"><table id="yPTable"></table></div>
+  <p class="note">Live prices at the trade hub chosen on the Ore Values tab, after sales tax (and broker fee when listing), with your reprocessing skills and station there. Uses only the modules that can mine this ore (a crystal's bonus only on its own ores).</p>
+</div>
 <p class="note">Rates include the expected bonus from critical successes (chance × extra yield). Not counted: Mining Foreman bursts and other fleet boosts, implants, boosters, overheating. Waste is ore lost from the rock, not from your hold.</p>
 </section>
 
@@ -278,7 +284,7 @@ const load = (k, d) => { try { const v = localStorage.getItem("em:" + k); return
 const store = (k, v) => { try { localStorage.setItem("em:" + k, JSON.stringify(v)); } catch (e) {} };
 const S = Object.assign({ hub: "jita", sellMode: "instant", acct: "3", brok: "3", repBase: 50, repTax: 5, rep: "3", repEff: "0", oreSk: "0", implant: "0",
   kinds: { ore: true, moon: false, ice: false, merc: false, trig: false }, grades: "base",
-  pfKind: "ore", pfOre: {}, pfMeta: "t12",
+  pfKind: "ore", pfOre: {}, pfMeta: "t12", yOre: 0,
   pStart: "", pRadius: 5, pSec: "high", pPref: "secure", pOre: "best", pJump: 45, pDock: 60, pRateOver: null, pHoldOver: null }, load("settings", {}));
 const saveS = () => store("settings", S);
 
@@ -491,6 +497,7 @@ function readOreForm() {
   saveS();
   const st = oreSettings();
   $("#feeNote").textContent = `Sales tax ${n2(st.tax * 100)}%` + (S.sellMode === "list" ? `, broker fee ${n2(st.broker * 100)}% (the most you'd pay; standings not counted)` : "") + ".";
+  if ($("#yOre").options.length) yPrice();
   $("#repNote").textContent = "NPC stations: 50% base. Upwell refineries: 50% plus rig and structure bonuses (an Athanor or Tatara with T2 rigs in nullsec is roughly 55-56%). Tax at NPC stations falls with your standing.";
 }
 // Value what is in the ship's holds right now (signed in): ore and minerals, each the best way.
@@ -638,6 +645,50 @@ function drawYield() {
   if (S.pRateOver == null) $("#pRate").value = Math.round((y.oreRate) * 3600);
   if (S.pHoldOver == null) $("#pHold").value = Math.round(y.hold);
   if (ORE_BOOKS) drawOres();
+  drawYPrice();
+}
+// ---------- price of what you mine ----------
+// Base-grade ores of every kind; the chosen one is valued the Ore Values way (raw, compressed, reprocessed).
+const yOres = () => D.ores.filter(o => !o.raw && isBaseGrade(o));
+const yOre = () => ORE.get(+S.yOre) || yOres().find(o => o.n === "Veldspar") || yOres()[0];
+function drawYOre() {
+  const cur = yOre();
+  $("#yOre").innerHTML = Object.entries(KINDS).map(([k, l]) => { const l2 = yOres().filter(o => o.k === k).sort((a, b) => a.n.localeCompare(b.n)); return l2.length ? `<optgroup label="${esc(l)}">${l2.map(o => `<option value="${o.id}" ${o === cur ? "selected" : ""}>${esc(o.n)}</option>`).join("")}</optgroup>` : ""; }).join("");
+}
+let YP = { key: "", books: null, at: 0, run: 0 };
+async function yPrice() {
+  const o = yOre(); if (!o) return;
+  const key = S.hub + ":" + o.id;
+  if (YP.key === key && Date.now() - YP.at < 3e5) { drawYPrice(); return; }
+  const run = ++YP.run;
+  setStatus($("#yPStatus"), `Reading ${HUBS[S.hub].name} prices...`, "busy");
+  try {
+    const books = await booksAt(S.hub, typesFor([o]));
+    if (run !== YP.run) return;
+    YP = { key, books, at: Date.now(), run };
+    setStatus($("#yPStatus"), "");
+    drawYPrice();
+  } catch (e) { if (run === YP.run) setStatus($("#yPStatus"), e.message, "err"); }
+}
+function drawYPrice() {
+  const o = yOre();
+  if (!o || !YP.books || YP.key !== S.hub + ":" + o.id) { $("#yPKpis").innerHTML = ""; $("#yPTable").innerHTML = ""; return; }
+  const v = valueOre(o, YP.books, oreSettings()), rate = v.rate, hold = YC.hold;
+  $("#yPriceSub").textContent = `(${o.n} at ${HUBS[S.hub].st})`;
+  if (!(rate > 0)) {
+    $("#yPKpis").innerHTML = `<div class="kpi"><div class="v">—</div><div class="k">nothing in this fit can mine ${esc(o.n)}</div></div><div class="kpi"><div class="v">${isk(v.best)}</div><div class="k">best ISK per m³ (${v.best > 0 ? WAY[v.bestK].toLowerCase() : "no buyers"})</div></div>`;
+    $("#yPTable").innerHTML = ""; return;
+  }
+  const fill = hold ? hold / rate : 0;
+  $("#yPKpis").innerHTML = [
+    `<div class="kpi"><div class="v">${isk(v.best * rate * 3600)}</div><div class="k">ISK per hour (${v.best > 0 ? WAY[v.bestK].toLowerCase() : "no buyers"})</div></div>`,
+    `<div class="kpi"><div class="v">${hold ? isk(v.best * hold) : "—"}</div><div class="k">ISK per full hold${fill ? ` (every ${mins(fill)})` : ""}</div></div>`,
+    `<div class="kpi"><div class="v acc">${isk(v.best)}</div><div class="k">best ISK per m³</div></div>`,
+    `<div class="kpi"><div class="v acc">${n0(rate * 3600)} m³</div><div class="k">of ${esc(o.n)} per hour</div></div>`
+  ].join("");
+  const rows = [["raw", "Sell raw ore"], ["cmp", "Compress and sell"], ["ref", "Reprocess and sell minerals"]].map(([k, l]) =>
+    `<tr><td class="l">${l}</td><td class="${v.bestK === k && v[k] > 0 ? "best" : ""}">${v[k] > 0 ? isk(v[k]) : "—"}</td><td>${v[k] > 0 ? isk(v[k] * rate * 3600) : "—"}</td><td>${v[k] > 0 && hold ? isk(v[k] * hold) : "—"}</td></tr>`).join("");
+  $("#yPTable").innerHTML = `<thead><tr><th class="l">Way</th><th>ISK per m³</th><th>ISK per hour</th><th>ISK per full hold</th></tr></thead><tbody>${rows}</tbody>`;
 }
 function onFitChange(e) {
   const t = e.target;
@@ -943,7 +994,7 @@ function init() {
   $("#pStart").value = S.pStart; $("#pRadius").value = S.pRadius; $("#pSec").value = S.pSec; $("#pPref").value = S.pPref; $("#pJump").value = S.pJump; $("#pDock").value = S.pDock;
   $("#sysList").innerHTML = MAP.names.slice().sort().map(n => `<option value="${esc(n)}">`).join("");
   $("#dataNote").innerHTML = `Bundled data from CCP's Static Data Export build ${esc(D.build)} (${esc(D.released)}): ${D.ores.length} ore types, ${D.fit.ships.length} mining ships, ${D.fit.mods.length} modules and rigs, ${D.fit.crystals.length} crystals, ${MAP.ids.length.toLocaleString()} systems with ${MAP.belts.reduce((a, b) => a + b, 0).toLocaleString()} asteroid belts. Prices, kills and traffic come live from EVE's API.`;
-  drawOreChoice(); drawShips(); drawSlots(); onSkills(); readOreForm(); drawWho(); drawPfForm(); runPresets();
+  drawOreChoice(); drawShips(); drawSlots(); onSkills(); readOreForm(); drawWho(); drawPfForm(); runPresets(); drawYOre(); yPrice();
   if (S.pRateOver != null) $("#pRate").value = S.pRateOver; if (S.pHoldOver != null) $("#pHold").value = S.pHoldOver;
 
   $("#oreForm").addEventListener("submit", runOres);
@@ -951,6 +1002,7 @@ function init() {
   $("#oreTable").addEventListener("click", e => { if (sortClick(e, ORE_SORT, drawOres)) return; const tr = e.target.closest("tr[data-i]"); if (tr) drawOreDetail(ORE_ROWS[+tr.dataset.i].o.id); });
   $("#holdGo").addEventListener("click", valueHold);
   $("#pfBox").addEventListener("change", onPfChange);
+  $("#yOre").addEventListener("change", e => { e.stopPropagation(); S.yOre = +e.target.value; saveS(); yPrice(); });
   $("#v-yield").addEventListener("change", onFitChange);
   $("#myShip").addEventListener("click", loadMyShip);
   $("#pfMine").addEventListener("click", bestForMe);
@@ -971,7 +1023,7 @@ function init() {
   });
   $("#signIn").addEventListener("click", signIn);
   $("#signOut").addEventListener("click", signOut);
-  $("#clearCache").addEventListener("click", () => { BOOKS.clear(); ORE_BOOKS = null; $("#oreOut").hidden = true; });
+  $("#clearCache").addEventListener("click", () => { BOOKS.clear(); ORE_BOOKS = null; YP.key = ""; $("#oreOut").hidden = true; });
   $("#theme").addEventListener("click", () => { const t = document.documentElement.dataset.theme === "light" ? "dark" : "light"; document.documentElement.dataset.theme = t; try { localStorage.setItem("em:theme", JSON.stringify(t).replace(/"/g, "")); } catch (e) {} drawTheme(); });
   const drawTheme = () => $("#theme").textContent = document.documentElement.dataset.theme === "light" ? "Dark theme" : "Light theme";
   drawTheme();
